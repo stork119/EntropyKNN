@@ -1,0 +1,3 @@
+useDynLib(EntropyKNN)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
