@@ -68,6 +68,7 @@ NumericVector get_k_neighbour_2_1(NumericMatrix data, int k)
   }
   return data_k_neighbour;
 }
+
 // [[Rcpp::export]]
 std::vector<double> get_k_neighbour_3(NumericMatrix data, int k)
 {
@@ -98,4 +99,37 @@ std::vector<double> get_k_neighbour_3(NumericMatrix data, int k)
  */
 
 
+
+/**
+ * Check if equal 
+ */
+// [[Rcpp::export]]
+int check_equality(NumericMatrix data, double delta)
+{
+  if(data.nrow() == 1)
+  {
+    return 0;
+  }
+  std::vector<double> data_k_neighbour(data.nrow(), 0.0);
+  for(int data_i = 0; data_i != data.nrow() - 1; ++data_i)
+  {
+    std::vector<double> temp(data.nrow() - 1 - data_i, 0.0);
+    for(int col_i = 0; col_i != data.ncol(); ++col_i){
+      double Y = data(data_i,col_i);
+      for(int row_i = data_i + 1; row_i != data.nrow(); ++row_i)
+      {
+        temp[row_i - 1 - data_i] = std::max(temp[row_i- 1 - data_i],
+                                            std::abs(Y - data(row_i,col_i)));
+      }
+    }
+    for(std::vector<double>::iterator it = temp.begin(); it != temp.end(); ++it)
+    {
+      if(*it < delta)
+      {
+        return 0;
+      }
+    }
+  }
+  return 1;
+}
 
