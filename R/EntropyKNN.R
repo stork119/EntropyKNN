@@ -54,6 +54,16 @@ entropyDistriubtion <- function(data,
                                 get_k_neighbour = get_k_neighbour_2
 ){
   
+  dataPermutation <- function(data){
+    for(j in 1:ncol(data)){
+      data[,j] <- sample(x = data[,j],
+                         size = nrow(data),
+                         replace = FALSE
+      )
+    }
+    return(data)
+  }
+  
   entropy.permutation <- foreach(i = 1:n) %dopar%
   {
       data.tmp <- dataPermutation(data[sample(x = 1:nrow(data), size = data.size), ])
@@ -67,16 +77,13 @@ entropyDistriubtion <- function(data,
                   k = k,
                   get_k_neighbour = get_k_neighbour)$entropy.KNN.Charzynska
   entropy.pval <- sum(entropy.permutation < entropy)/n
-  return(list(entropy.pval = entropy.pval, entropy = entropy, entropy.permutation = entropy.permutation, k = k , n = n, data.size = data.size))
+  return(
+    list(entropy.pval = entropy.pval,
+         entropy = entropy,
+         entropy.permutation = entropy.permutation,
+         k = k,
+         n = n,
+         data.size = data.size))
 }
 
-dataPermutation <- function(data){
-  for(j in 1:ncol(data)){
-    data[,j] <- sample(x = data[,j],
-                       size = nrow(data),
-                       replace = FALSE
-                       )
-  }
-  return(data)
-}
 

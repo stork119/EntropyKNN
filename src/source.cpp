@@ -68,7 +68,6 @@ NumericVector get_k_neighbour_2_1(NumericMatrix data, int k)
   }
   return data_k_neighbour;
 }
-
 // [[Rcpp::export]]
 std::vector<double> get_k_neighbour_3(NumericMatrix data, int k)
 {
