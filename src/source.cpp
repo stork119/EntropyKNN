@@ -97,6 +97,28 @@ std::vector<double> get_k_neighbour_3(NumericMatrix data, int k)
  * Sprawdzić Parallelność
  */
 
+/*
+ * Euclidean
+ */
+
+// [[Rcpp::export]]
+std::vector<double> get_k_neighbour_euclidean(NumericMatrix data, int k)
+{
+  std::vector<double> data_k_neighbour(data.nrow(), 0.0);
+  for(int data_i = 0; data_i != data.nrow(); ++data_i)
+  {
+      std::vector<double> temp(data.nrow(), 0.0);
+      for(int row_i = 0; row_i != data.nrow(); ++row_i)
+      {
+        for(int col_i = 0; col_i != data.ncol(); ++col_i){
+          temp[row_i] += std::abs(data(data_i,col_i)*data(data_i,col_i) - data(row_i,col_i)*data(row_i,col_i));
+        }
+      }
+     std::sort(temp.begin(), temp.end());
+     data_k_neighbour[data_i] = temp[k];
+  }
+  return data_k_neighbour;
+}
 
 
 /**

@@ -3,14 +3,19 @@
 ###
 library(Rcpp)
 library(foreach)
+library(doParallel)
 
 sourceCpp("src/source.cpp")
 
 entropyKNN <- function(
   data,
   k = 5,
-  get_k_neighbour = get_k_neighbour_2){
-
+  knn_measure = knn_measure_fun(type = "max")){
+  
+  get_k_neighbour <- knn_measure$get_k_neighbour
+  UnitBallVolume  <- knn_measure$UnitBallVolume
+  entropy_fun     <- knn_measure$entropy_fun
+  
   data.M  <- data.matrix(data)
   ncol    <- ncol(data.M)
   nrow    <- nrow(data.M)
@@ -19,11 +24,6 @@ entropyKNN <- function(
                        data = data.M,
                        k = k))
 
-  UnitBallVolume<-function(n)
-  {
-    V=2^n
-    return(V)
-  }
 
   lbound <- apply(data.M,2,min)
   ubound <- apply(data.M,2,max)
@@ -31,27 +31,25 @@ entropyKNN <- function(
   vol    <- rep(0, times = nrow)
   prop   <- rep(0, times = nrow)
 
+  unit_ball <- UnitBallVolume(ncol)
   for (i in 1:nrow){
-    rN[i]   <- kNNdist[i]^(1/ncol)/((nrow-1)*UnitBallVolume(ncol)*(-digamma(1)))^(1/ncol) #dzielenie
+    rN[i]   <- kNNdist[i]^(1/ncol)/((nrow-1)*unit_ball*(-digamma(1)))^(1/ncol) #dzielenie
     vol[i]  <- prod(pmin(rN[i], abs(data.M[i,]-lbound)) + pmin(rN[i], abs(data.M[i,]-ubound)))
     prop[i] <- vol[i]*(nrow-1)*(-digamma(1))/kNNdist[i]
   }
-  entropy.corr  <- sum(log(prop))/nrow
-  entropy       <- ncol*sum(log(kNNdist))/nrow
-  entropy.KNN.Kraskov <- -digamma(k) + digamma(nrow) + log(UnitBallVolume(ncol)) + entropy
-  entropy.KNN.Charzynska <- entropy.KNN.Kraskov + entropy.corr
+  
+  entropy       <- -digamma(k) + digamma(nrow) + log(UnitBallVolume(ncol)) + ncol*sum(log(kNNdist))/nrow
+  results       <- entropy_fun(list(entropy = entropy), prop, nrow)
 
-  return(list(entropy.corr = entropy.corr,
-              entropy = entropy,
-              entropy.KNN.Kraskov = entropy.KNN.Kraskov,
-              entropy.KNN.Charzynska = entropy.KNN.Charzynska))
+  return(results)
 }
 
 entropyDistriubtion <- function(data,
                                 data.size = nrow(data),
                                 n = 1000,
                                 k = 5,
-                                get_k_neighbour = get_k_neighbour_2
+                                knn_measure = knn_measure_fun(type = "max"),
+                                threads_num = 4
 ){
   
   dataPermutation <- function(data){
@@ -64,18 +62,26 @@ entropyDistriubtion <- function(data,
     return(data)
   }
   
-  entropy.permutation <- foreach(i = 1:n) %dopar%
+  
+  cl <- makeCluster(threads_num)
+  registerDoParallel(cl)
+  
+  entropy.permutation <- foreach(i = 1:n, .export = c('entropyKNN', 
+                                                      'data')) %do%
   {
       data.tmp <- dataPermutation(data[sample(x = 1:nrow(data), size = data.size), ])
       e <- entropyKNN(data = data.tmp,
-        k = k,
-        get_k_neighbour = get_k_neighbour)
-      return(e$entropy.KNN.Charzynska)
+                      k = k,
+                      knn_measure = knn_measure)
+      return(e$entropy)
   }
+  
+  stopCluster(cl)
+  
   entropy.permutation <- unlist(entropy.permutation)
   entropy <- entropyKNN(data = data[sample(x = 1:nrow(data), size = data.size), ],
                   k = k,
-                  get_k_neighbour = get_k_neighbour)$entropy.KNN.Charzynska
+                  knn_measure = knn_measure)$entropy
   entropy.pval <- sum(entropy.permutation < entropy)/n
   return(
     list(entropy.pval = entropy.pval,
@@ -86,4 +92,36 @@ entropyDistriubtion <- function(data,
          data.size = data.size))
 }
 
-
+knn_measure_fun <- function(type = "max"){
+  if(type == "max"){
+    return(list(
+      get_k_neighbour = get_k_neighbour_2,
+           UnitBallVolume  = function(n)
+           {
+             return(2^n)
+           },
+           entropy_fun  = function(results, prop, nrow){
+             results$entropy.corr  <- sum(log(prop))/nrow
+             results$entropy.KNN.Charzynska <- results$entropy + results$entropy.corr
+             return(results)
+           })
+    )
+  } else if (type == "euclidean"){
+    return(list(
+      get_k_neighbour = get_k_neighbour_euclidean,
+           UnitBallVolume  = function(n)
+           { 
+               if(n %% 2 == 0){
+                  return(pi^(n/2)/factorial(n/2))
+               } else {
+                   return((2*factorial((n-1)/2)*((4*pi)^((n-1)/2)))/(factorial(n)))
+               }
+           },
+           entropy_fun  = function(results, prop, nrow){
+             return(results)
+           })
+    )
+  } else {
+    #warning
+  }
+}
