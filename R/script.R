@@ -8,7 +8,6 @@ library(parallel)
 library(doParallel)
 library(data.table)
 
-amount <- max(data$.key)
 
 cl.number <- 8
 k <- 6
@@ -16,8 +15,12 @@ k <- 6
 data.hesc <- read.csv(file = "../Resources/HESC_sum_Rscore.csv", sep = "\t")
 
 data <- data.table(data.hesc)
+data <- data[1:5000,]
+
 data$.key <- 1:nrow(data)
 setkey(data, .key)
+
+amount <- max(data$.key)
 
 i <- 1
 data.nrow <- nrow(data)
@@ -59,6 +62,8 @@ time.1.2 <-system.time({
   stopCluster(cl)
 })
 
+N <- data.nrow
+dimY <- data.ncol
 time.2.1 <- system.time({
 
   temp1<-matrix(0, nrow=N-1, ncol=dimY)
@@ -67,7 +72,7 @@ time.2.1 <- system.time({
     temp<-matrix(0, nrow=N-1, ncol=1)
     for (d in 1:dimY){
       # temp<-temp+(Y[-i,d]-Y[i,d])^2;     # Euclidian norm
-      temp1[,d]<-abs(Y[-i,d]-Y[i,d]);      # max norm
+      temp1[,d]<-abs(data[-i,d]-data[i,d]);      # max norm
     }
     #       rep.row<-function(x,n){
     #         matrix(rep(x,each=n),nrow=n)
@@ -82,6 +87,38 @@ time.2.1 <- system.time({
     return(temp[k])                    # k-nn max norm
   }
   #stopCluster(cl)
+})
+
+Y.raw <- read.csv(file = "../Resources/HESC_sum_Rscore.csv", sep = "\t")
+Y.raw <- data.matrix(Y.raw)
+Y <- Y.raw
+Y <- Y[1:5000,]
+N <- nrow(Y)
+dimY <- ncol(Y)
+temp<-matrix(0, nrow=N-1, ncol=1)
+temp1<-matrix(0, nrow=N-1, ncol=dimY)
+kNNdist<-matrix(0, nrow=N-1, ncol=1)
+time.2.3 <- system.time(
+  {
+
+for (i in 1:N){
+  for (d in 1:dimY){
+    # temp<-temp+(Y[-i,d]-Y[i,d])^2;     # Euclidian norm
+    temp1[,d]<-abs(Y[-i,d]-Y[i,d]);      # max norm
+  }
+  #       rep.row<-function(x,n){
+  #         matrix(rep(x,each=n),nrow=n)
+  #       }
+  #       temp1[,]<-abs(Y[-i,]-rep.row(Y[i,],N-1))
+
+  # # pY[i]<-1/sqrt(min(temp))           # nn Euclidian norm
+  # temp<-sort(temp)
+  # pY(i)=1/sqrt(temp(k))
+  temp<-apply(temp1,1,max)               # nn max norm
+  temp<-sort(temp)
+  kNNdist[i]<-temp[k]                    # k-nn max norm
+  temp<-matrix(0, nrow=N-1, ncol=1)
+}
 })
 
 time.2.2 <- system.time({
